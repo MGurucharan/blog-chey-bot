@@ -10,3 +10,4 @@ python-dotenv
 uvicorn
 langchain-community
 fastapi
+langchain-pinecone

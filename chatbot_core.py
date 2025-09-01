@@ -4,7 +4,6 @@ from langchain_openai.embeddings import OpenAIEmbeddings
 from langchain_experimental.text_splitter import SemanticChunker
 import asyncio
 from pinecone import Pinecone, ServerlessSpec
-from langchain_community.vectorstores import Pinecone as PineconeVectorStore
 from dotenv import load_dotenv
 from pydantic import BaseModel
 load_dotenv()
@@ -13,6 +12,7 @@ from openai import OpenAI
 import os
 import asyncio
 import re
+from langchain_pinecone import PineconeVectorStore
 from langchain_openai import ChatOpenAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain_core.prompts import PromptTemplate
@@ -74,7 +74,7 @@ if index_name not in [idx.name for idx in pc.list_indexes()]:
         spec=ServerlessSpec(cloud="aws", region="us-east-1")
     )
 
-index = PineconeVectorStore(
+index = PineconeVectorStore.from_existing_index(
     index_name=index_name,
     embedding=embedding_model
 )
