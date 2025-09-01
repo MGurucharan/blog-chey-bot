@@ -141,56 +141,108 @@ class Query(BaseModel):
     title:str
     question:str
 
+
 @app.post("/fastapi/post")
-async def poster(query:Query) :
-        llm = ChatOpenAI(model="gpt-3.5-turbo")
-        chain = load_qa_chain(llm, chain_type='stuff')
-            
-        template = """
-        You are an expert on answering questions related to blog posts.
-        Use the following context to answer the question given by the user.
+async def poster(query: Query):
+    llm = ChatOpenAI(model="gpt-3.5-turbo")
 
+    template = """
+    You are an expert on answering questions related to blog posts.
+    Use the following context to answer the question given by the user.
 
-        If the user's query includes the word "translate" or "translation",
-        or if they ask for an output in another language,
-        then perform the translation of whole context that is given to you directly (don't summarize) and return it to the user.
+    If the user's query includes the word "translate" or "translation",
+    or if they ask for an output in another language,
+    then perform the translation of the WHOLE context directly (don't summarize).
+
+    If the context includes relevant blog content, summarize it.
+
+    If nothing is found, just say: "Could you be more specific?"
+
+    Context:
+    {context}
+
+    Question: {question}
+    Answer:
+    """
+
+    prompt = PromptTemplate(
+        template=template,
+        input_variables=["context", "question"]
+    )
+
+    # 🔑 Retrieve documents
+    retriever = index.as_retriever()
+    if query.title:
+        retriever = index.as_retriever(
+            search_kwargs={"filter": {"title": query.title}}
+        )
+
+    docs = retriever.invoke(query.question)
+
+    # Convert docs to plain text for context
+    context_text = "\n\n".join([doc.page_content for doc in docs])
+
+    rag_chain = (
+        {
+            "context": lambda q: context_text,
+            "question": RunnablePassthrough()
+        }
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    result = rag_chain.invoke(query.question)
+    return {"message": result}
+
+    llm = ChatOpenAI(model="gpt-3.5-turbo")
+    chain = load_qa_chain(llm, chain_type='stuff')
         
-        If the context includes relevant blog content, summarize it.
-
-        If the user understands and replies back , be polite and give a soothing response to the user.  
-        If nothing is found, just say: "Could you be more specific?"
-
-        Context:
-        {context}
-
-        Question: {question}
-        Answer:
-        """
-
-        prompt=PromptTemplate(
-            template=template,
-            input_variables=["context","question"]
-        )
-
-        def retriever_with_title(question, title=None):
-            if title:
-                # Better to use metadata filter instead of injecting title into query string
-                return index.as_retriever(
-                    search_kwargs={"filter": {"title": title}}
-                ).invoke(question)
-            return index.as_retriever().invoke(question)
+    template = """
+    You are an expert on answering questions related to blog posts.
+    Use the following context to answer the question given by the user.
 
 
-        rag_chain = (
-            {
-                "context": lambda q: retriever_with_title(q, title=query.title),
-                "question": RunnablePassthrough()
-            }
-            | prompt
-            | llm
-            | StrOutputParser()
-        )
+    If the user's query includes the word "translate" or "translation",
+    or if they ask for an output in another language,
+    then perform the translation of whole context that is given to you directly (don't summarize) and return it to the user.
+    
+    If the context includes relevant blog content, summarize it.
 
-        result = rag_chain.invoke(query.question)
-        return {"message":result}
+    If the user understands and replies back , be polite and give a soothing response to the user.  
+    If nothing is found, just say: "Could you be more specific?"
+
+    Context:
+    {context}
+
+    Question: {question}
+    Answer:
+    """
+
+    prompt=PromptTemplate(
+        template=template,
+        input_variables=["context","question"]
+    )
+
+    def retriever_with_title(question, title=None):
+        if title:
+            # Better to use metadata filter instead of injecting title into query string
+            return index.as_retriever(
+                search_kwargs={"filter": {"title": title}}
+            ).invoke(question)
+        return index.as_retriever().invoke(question)
+
+
+    rag_chain = (
+        {
+            "context": lambda q: retriever_with_title(q, title=query.title),
+            "question": RunnablePassthrough()
+        }
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    result = rag_chain.invoke(query.question)
+    return {"message":result}
 
