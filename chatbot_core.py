@@ -85,7 +85,7 @@ async def root():
     return {"message": "🚀 FastAPI is running! Use POST /ingest or POST /post."}
 
 
-@app.post("/ingest")  
+@app.post("/fastapi/ingest")  
 async def ingester():
         loader=MongodbLoader(
         connection_string=os.getenv("MONGO_URI"),
@@ -141,7 +141,7 @@ class Query(BaseModel):
     title:str
     question:str
 
-@app.post("/post")
+@app.post("/fastapi/post")
 async def poster(query:Query) :
         llm = ChatOpenAI(model="gpt-3.5-turbo")
         chain = load_qa_chain(llm, chain_type='stuff')
