@@ -4,7 +4,7 @@ from langchain_openai.embeddings import OpenAIEmbeddings
 from langchain_experimental.text_splitter import SemanticChunker
 import asyncio
 from pinecone import Pinecone, ServerlessSpec
-from langchain_pinecone import PineconeVectorStore
+from langchain_community.vectorstores import Pinecone as PineconeVectorStore
 from dotenv import load_dotenv
 from pydantic import BaseModel
 load_dotenv()
@@ -85,7 +85,7 @@ index = PineconeVectorStore(
 @app.post("/ingest")  
 async def ingester():
         loader=MongodbLoader(
-        connection_string="mongodb+srv://gurucharanm:mongoguru@blogchey.koasnhj.mongodb.net/blogDB?retryWrites=true&w=majority&appName=blogchey",
+        connection_string=os.getenv("MONGO_URI"),
         db_name="dummy",
         collection_name="items",
         field_names=["title","content"]

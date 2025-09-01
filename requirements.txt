@@ -8,3 +8,4 @@ motor
 bs4
 python-dotenv
 uvicorn
+langchain-community
