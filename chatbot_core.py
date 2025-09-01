@@ -80,6 +80,9 @@ index = PineconeVectorStore.from_existing_index(
 )
 
 
+@app.get("/")
+async def root():
+    return {"message": "🚀 FastAPI is running! Use POST /ingest or POST /post."}
 
 
 @app.post("/ingest")  
