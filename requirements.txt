@@ -1,0 +1,10 @@
+pandas
+langchain
+openai
+langchain-openai
+langchain-experimental
+pinecone
+motor
+bs4
+python-dotenv
+uvicorn
