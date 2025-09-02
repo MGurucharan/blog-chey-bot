@@ -179,7 +179,7 @@ async def poster(query: Query):
 
     rag_chain = (
         {
-            "context": lambda q: retriever_with_title(q, title="AI companion apps on track to pull in $120M in 2025"),
+            "context": lambda q: retriever_with_title(q, title=query.title),
             "question": RunnablePassthrough()
         }
         | prompt
@@ -187,7 +187,7 @@ async def poster(query: Query):
         | StrOutputParser()
     )
 
-    result = rag_chain.invoke("What is the main take away of the blog post")
-    print(result)
+    result = rag_chain.invoke(query.question)
+    return {"message":result}
 
 
