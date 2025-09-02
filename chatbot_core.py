@@ -144,7 +144,7 @@ class Query(BaseModel):
 
 @app.post("/fastapi/post")
 async def poster(query: Query):
-    llm = ChatOpenAI(model="gpt-3.5-turbo")
+    llm = ChatOpenAI(model="gpt-3.5-turbo",api_key=api_key)
 
     template = """
     You are an expert on answering questions related to blog posts.
