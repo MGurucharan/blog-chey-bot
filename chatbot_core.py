@@ -80,7 +80,9 @@ index = PineconeVectorStore(
 )
 
 
-
+@app.get("/")
+def func():
+    return {"FastAPI Chatbot running !"}
 
 @app.post("/fastapi/ingest")  
 async def ingester():
