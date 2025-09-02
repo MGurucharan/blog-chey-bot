@@ -179,7 +179,7 @@ async def poster(query: Query):
 
     rag_chain = (
         {
-            "context": lambda q: retriever_with_title(q, title=query.title),
+            "context": lambda _: retriever_with_title(query=query.question, title=query.title),
             "question": RunnablePassthrough()
         }
         | prompt
@@ -188,6 +188,7 @@ async def poster(query: Query):
     )
 
     result = rag_chain.invoke(query.question)
-    print(result)
+    return {"message": result}
+
 
 
