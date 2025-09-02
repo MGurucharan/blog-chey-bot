@@ -173,7 +173,9 @@ async def poster(query:Query) :
                 ).invoke(question)
             return index.as_retriever().invoke(question)
 
-
+        docs=retriever_with_title(query.question,query.title)
+        print("Retrieved docs : ",docs)
+        
         rag_chain = (
             {
                 "context": lambda q: retriever_with_title(q, title=query.title),
