@@ -117,7 +117,7 @@ async def ingester():
     
         articles="\n\n---------------------------------------------------------------------------------------\n\n".join(separated_text_chunks)
     
-    
+
 
         # 6. Insert documents using LangChain wrapper
 
@@ -150,17 +150,19 @@ async def poster(query: Query):
     chain = load_qa_chain(llm, chain_type='stuff')
         
     template = """
-    You are an expert on answering questions related to blog posts.
-    Use the following context to answer the question given by the user.
+    You are an expert on answering questions related to blog posts. Use the following context to answer the question given by the user. 
 
-    If the context includes relevant blog content, summarize it.
-    If nothing is found, just say: "Could you be more specific?"
+    If the user's query includes the word "translate" or "translation", or if they ask for an output in another language, then perform the translation of whole context that is given to you directly (don't summarize) and return it to the user. 
 
-    Context:
-    {context}
+    If the context includes relevant blog content, summarize it. If the user understands and replies back , be polite and give a soothing response to the user. 
 
-    Question: {question}
-    Answer:
+    If nothing is found, just say: "Could you be more specific?" 
+    
+    Context: {context} 
+    
+    Question: {question} 
+    
+    Answer: 
     """
 
     prompt=PromptTemplate(
@@ -175,11 +177,11 @@ async def poster(query: Query):
                 search_kwargs={"filter": {"title": title}}
             ).invoke(query)
         return index.as_retriever().invoke(query)
-
+    
 
     rag_chain = (
         {
-            "context": lambda _: retriever_with_title(query=query.question, title=query.title),
+            "context": lambda q: retriever_with_title(q, title=query.title),
             "question": RunnablePassthrough()
         }
         | prompt
