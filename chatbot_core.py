@@ -188,6 +188,6 @@ async def poster(query: Query):
     )
 
     result = rag_chain.invoke(query.question)
-    return {"message":result}
+    print(result)
 
 
