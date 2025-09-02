@@ -172,10 +172,18 @@ async def poster(query: Query):
 
     def retriever_with_title(query, title=None):
         if title:
-            return index.as_retriever(
+            docs = index.as_retriever(
                 search_kwargs={"filter": {"title": title}}
             ).invoke(query)
-        return index.as_retriever().invoke(query)
+        else:
+            docs = index.as_retriever().invoke(query)
+
+        print(f"Retriever got {len(docs)} docs")
+        for d in docs:
+            print("DOC:", d.page_content[:200], "META:", d.metadata)
+
+        return docs
+
 
     rag_chain = (
         {
