@@ -110,7 +110,7 @@ async def ingester():
             
             chunks=text_splitter.create_documents([plain_text])
             for chunk in chunks:
-                chunk.metadata["title"]=extracted_title
+                chunk.metadata["title"] = doc.metadata.get("title") or extracted_title
                 separated_doc_chunks.append(chunk)
             for ch in chunks:
                 separated_text_chunks.append(ch.page_content)
@@ -154,49 +154,43 @@ async def poster(query: Query):
 
     If the user's query includes the word "translate" or "translation", or if they ask for an output in another language, then perform the translation of whole context that is given to you directly (don't summarize) and return it to the user. 
 
-    If the context includes relevant blog content, summarize it. If the user understands and replies back, be polite and give a soothing response to the user. 
+    If the context includes relevant blog content, summarize it. If the user understands and replies back, be polite and give a soothing response. 
 
     If nothing is found, just say: "Could you be more specific?" 
-    
-    Context: {context} 
-    
-    Question: {question} 
-    
-    Answer: 
     """
 
     prompt = PromptTemplate(
-        template=template,
+        template=template + "\n\nContext: {context}\n\nQuestion: {question}\n\nAnswer:",
         input_variables=["context", "question"]
     )
 
-    def retriever_with_title(query, title=None):
+    def retriever_with_title(question, title=None):
         if title:
             docs = index.as_retriever(
-                search_kwargs={"filter": {"title": title}}
-            ).invoke(query)
-        else:
-            docs = index.as_retriever().invoke(query)
+                search_kwargs={"filter": {"title": {"$eq": title.strip()}}}
+            ).invoke(question)
+            if docs:
+                return docs
+        return index.as_retriever().invoke(question)
 
-        print(f"Retriever got {len(docs)} docs")
-        for d in docs:
-            print("DOC:", d.page_content[:200], "META:", d.metadata)
+    # ✅ Retrieve once
+    docs = retriever_with_title(query.question, title=query.title)
+    print(f"Retriever got {len(docs)} docs for title='{query.title}' and question='{query.question}'")
 
-        return docs
-
+    if not docs:
+        return {"message": "Could you be more specific? (No relevant blog content found)"}
 
     rag_chain = (
         {
-            "context": lambda x: retriever_with_title(x["question"], title=x.get("title")),
-            "question": lambda x: x["question"]
+            "context": lambda _: docs,
+            "question": lambda _: query.question
         }
         | prompt
         | llm
         | StrOutputParser()
     )
 
-    # ✅ FIXED: pass dict with both fields
-    result = rag_chain.invoke({"question": query.question, "title": query.title})
+    result = rag_chain.invoke({})
     return {"message": result}
 
 
