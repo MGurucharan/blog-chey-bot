@@ -88,7 +88,7 @@ def func():
 async def ingester():
         loader=MongodbLoader(
         connection_string=os.getenv("MONGO_URI"),
-        db_name="dummy",
+        db_name="blogDB",
         collection_name="items",
         field_names=["title","content"]
     )
