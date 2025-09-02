@@ -110,8 +110,9 @@ async def ingester():
             
             chunks=text_splitter.create_documents([plain_text])
             for chunk in chunks:
-                chunk.metadata["title"] = doc.metadata.get("title") or extracted_title
+                chunk.metadata["title"] = (doc.metadata.get("title") or extracted_title).strip().lower()
                 separated_doc_chunks.append(chunk)
+                print("Inserted title:", chunk.metadata["title"])
             for ch in chunks:
                 separated_text_chunks.append(ch.page_content)
 
@@ -129,7 +130,10 @@ async def ingester():
         )
         
 
+
         return {"message":"✅ Pinecone index created and populated with 3072-d embeddings."}
+    
+
         
         # await asyncio.sleep(5)  # ✅ non-blocking wait
         
@@ -166,12 +170,20 @@ async def poster(query: Query):
 
     def retriever_with_title(question, title=None):
         if title:
+            normalized_title = title.strip().lower()
             docs = index.as_retriever(
-                search_kwargs={"filter": {"title": {"$eq": title.strip()}}}
+                search_kwargs={"filter": {"title": {"$eq": normalized_title}}}
             ).invoke(question)
             if docs:
                 return docs
+            # ⚠️ If no match, do NOT fallback, just return []
+            return []
         return index.as_retriever().invoke(question)
+
+
+
+
+    print("User query title:", query.title.strip().lower())
 
     # ✅ Retrieve once
     docs = retriever_with_title(query.question, title=query.title)
