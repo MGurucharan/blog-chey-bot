@@ -145,19 +145,16 @@ class Query(BaseModel):
 
 @app.post("/fastapi/post")
 async def poster(query: Query):
-# Chain creation and finalization
-
     print(f"Received query - Title: '{query.title}', Question: '{query.question}'")
 
-    llm = ChatOpenAI(model="gpt-3.5-turbo",api_key=api_key)
-    chain = load_qa_chain(llm, chain_type='stuff')
-        
+    llm = ChatOpenAI(model="gpt-3.5-turbo", api_key=api_key)
+
     template = """
     You are an expert on answering questions related to blog posts. Use the following context to answer the question given by the user. 
 
     If the user's query includes the word "translate" or "translation", or if they ask for an output in another language, then perform the translation of whole context that is given to you directly (don't summarize) and return it to the user. 
 
-    If the context includes relevant blog content, summarize it. If the user understands and replies back , be polite and give a soothing response to the user. 
+    If the context includes relevant blog content, summarize it. If the user understands and replies back, be polite and give a soothing response to the user. 
 
     If nothing is found, just say: "Could you be more specific?" 
     
@@ -168,19 +165,17 @@ async def poster(query: Query):
     Answer: 
     """
 
-    prompt=PromptTemplate(
+    prompt = PromptTemplate(
         template=template,
-        input_variables=["context","question"]
+        input_variables=["context", "question"]
     )
 
     def retriever_with_title(query, title=None):
         if title:
-            # Use the correct filter format
             return index.as_retriever(
-                search_kwargs={"filter": {"title": {"$eq": title}}}
+                search_kwargs={"filter": {"title": title}}
             ).invoke(query)
         return index.as_retriever().invoke(query)
-    
 
     rag_chain = (
         {
@@ -192,8 +187,10 @@ async def poster(query: Query):
         | StrOutputParser()
     )
 
-    result = rag_chain.invoke(query.question)
+    # ✅ FIXED: pass dict with both fields
+    result = rag_chain.invoke({"question": query.question, "title": query.title})
     return {"message": result}
+
 
 
 
