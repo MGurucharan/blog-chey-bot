@@ -4,6 +4,7 @@ from langchain_openai.embeddings import OpenAIEmbeddings
 from langchain_experimental.text_splitter import SemanticChunker
 import asyncio
 from pinecone import Pinecone, ServerlessSpec
+from langchain_pinecone import PineconeVectorStore
 from dotenv import load_dotenv
 from pydantic import BaseModel
 load_dotenv()
@@ -12,7 +13,6 @@ from openai import OpenAI
 import os
 import asyncio
 import re
-from langchain_pinecone import PineconeVectorStore
 from langchain_openai import ChatOpenAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain_core.prompts import PromptTemplate
@@ -74,15 +74,12 @@ if index_name not in [idx.name for idx in pc.list_indexes()]:
         spec=ServerlessSpec(cloud="aws", region="us-east-1")
     )
 
-index = PineconeVectorStore.from_existing_index(
+index = PineconeVectorStore(
     index_name=index_name,
     embedding=embedding_model
 )
 
 
-@app.get("/")
-async def root():
-    return {"message": "🚀 FastAPI is running! Use POST /ingest or POST /post."}
 
 
 @app.post("/fastapi/ingest")  
@@ -107,19 +104,17 @@ async def ingester():
 
         for doc in documents:
             extracted_title,plain_text = extract_title_and_content(doc.page_content)
-            
             chunks=text_splitter.create_documents([plain_text])
             for chunk in chunks:
-                chunk.metadata["title"] = (doc.metadata.get("title") or extracted_title).strip().lower()
+                chunk.metadata["title"]=extracted_title
                 separated_doc_chunks.append(chunk)
-                print("Inserted title:", chunk.metadata["title"])
             for ch in chunks:
                 separated_text_chunks.append(ch.page_content)
 
     
         articles="\n\n---------------------------------------------------------------------------------------\n\n".join(separated_text_chunks)
     
-
+    
 
         # 6. Insert documents using LangChain wrapper
 
@@ -130,10 +125,7 @@ async def ingester():
         )
         
 
-
-        return {"message":"✅ Pinecone index created and populated with 3072-d embeddings."}
-    
-
+        print("✅ Pinecone index created and populated with 3072-d embeddings.")
         
         # await asyncio.sleep(5)  # ✅ non-blocking wait
         
@@ -146,65 +138,50 @@ class Query(BaseModel):
     title:str
     question:str
 
-
 @app.post("/fastapi/post")
-async def poster(query: Query):
-    print(f"Received query - Title: '{query.title}', Question: '{query.question}'")
+async def poster(query:Query) :
+        llm = ChatOpenAI(model="gpt-3.5-turbo")
+        chain = load_qa_chain(llm, chain_type='stuff')
+            
+        template = """
+        You are an expert on answering questions related to blog posts.
+        Use the following context to answer the question given by the user.
 
-    llm = ChatOpenAI(model="gpt-3.5-turbo", api_key=api_key)
+        If the user understands and replies back , be polite and give a soothing response to the user.  
+        If the context includes relevant blog content, summarize it.
+        If nothing is found, just say: "Could you be more specific?"
 
-    template = """
-    You are an expert on answering questions related to blog posts. Use the following context to answer the question given by the user. 
+        Context:
+        {context}
 
-    If the user's query includes the word "translate" or "translation", or if they ask for an output in another language, then perform the translation of whole context that is given to you directly (don't summarize) and return it to the user. 
+        Question: {question}
+        Answer:
+        """
 
-    If the context includes relevant blog content, summarize it. If the user understands and replies back, be polite and give a soothing response. 
+        prompt=PromptTemplate(
+            template=template,
+            input_variables=["context","question"]
+        )
 
-    If nothing is found, just say: "Could you be more specific?" 
-    """
-
-    prompt = PromptTemplate(
-        template=template + "\n\nContext: {context}\n\nQuestion: {question}\n\nAnswer:",
-        input_variables=["context", "question"]
-    )
-
-    def retriever_with_title(question, title=None):
-        if title:
-            normalized_title = title.strip().lower()
-            docs = index.as_retriever(
-                search_kwargs={"filter": {"title": {"$eq": normalized_title}}}
-            ).invoke(question)
-            if docs:
-                return docs
-            # ⚠️ If no match, do NOT fallback, just return []
-            return []
-        return index.as_retriever().invoke(question)
-
-
+        def retriever_with_title(question, title=None):
+            if title:
+                # Better to use metadata filter instead of injecting title into query string
+                return index.as_retriever(
+                    search_kwargs={"filter": {"title": title}}
+                ).invoke(question)
+            return index.as_retriever().invoke(question)
 
 
-    print("User query title:", query.title.strip().lower())
+        rag_chain = (
+            {
+                "context": lambda q: retriever_with_title(q, title=query.title),
+                "question": RunnablePassthrough()
+            }
+            | prompt
+            | llm
+            | StrOutputParser()
+        )
 
-    # ✅ Retrieve once
-    docs = retriever_with_title(query.question, title=query.title)
-    print(f"Retriever got {len(docs)} docs for title='{query.title}' and question='{query.question}'")
-
-    if not docs:
-        return {"message": "Could you be more specific? (No relevant blog content found)"}
-
-    rag_chain = (
-        {
-            "context": lambda _: docs,
-            "question": lambda _: query.question
-        }
-        | prompt
-        | llm
-        | StrOutputParser()
-    )
-
-    result = rag_chain.invoke({})
-    return {"message": result}
-
-
-
+        result = rag_chain.invoke(query.question)
+        return {"message":result}
 
