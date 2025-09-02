@@ -107,6 +107,7 @@ async def ingester():
 
         for doc in documents:
             extracted_title,plain_text = extract_title_and_content(doc.page_content)
+            
             chunks=text_splitter.create_documents([plain_text])
             for chunk in chunks:
                 chunk.metadata["title"]=extracted_title
@@ -146,6 +147,8 @@ class Query(BaseModel):
 async def poster(query: Query):
 # Chain creation and finalization
 
+    print(f"Received query - Title: '{query.title}', Question: '{query.question}'")
+
     llm = ChatOpenAI(model="gpt-3.5-turbo",api_key=api_key)
     chain = load_qa_chain(llm, chain_type='stuff')
         
@@ -172,17 +175,17 @@ async def poster(query: Query):
 
     def retriever_with_title(query, title=None):
         if title:
-            # Better to use metadata filter instead of injecting title into query string
+            # Use the correct filter format
             return index.as_retriever(
-                search_kwargs={"filter": {"title": title}}
+                search_kwargs={"filter": {"title": {"$eq": title}}}
             ).invoke(query)
         return index.as_retriever().invoke(query)
     
 
     rag_chain = (
         {
-            "context": lambda q: retriever_with_title(q, title=query.title),
-            "question": RunnablePassthrough()
+            "context": lambda x: retriever_with_title(x["question"], title=x.get("title")),
+            "question": lambda x: x["question"]
         }
         | prompt
         | llm
