@@ -127,7 +127,7 @@ async def ingester():
         )
         
 
-        print("✅ Pinecone index created and populated with 3072-d embeddings.")
+        return {"✅ Pinecone index created and populated with 3072-d embeddings."}
         
         # await asyncio.sleep(5)  # ✅ non-blocking wait
         
