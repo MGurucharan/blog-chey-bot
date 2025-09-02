@@ -144,18 +144,16 @@ class Query(BaseModel):
 
 @app.post("/fastapi/post")
 async def poster(query: Query):
-    llm = ChatOpenAI(model="gpt-3.5-turbo",api_key=api_key)
+# Chain creation and finalization
 
+    llm = ChatOpenAI(model="gpt-3.5-turbo",api_key=api_key)
+    chain = load_qa_chain(llm, chain_type='stuff')
+        
     template = """
     You are an expert on answering questions related to blog posts.
     Use the following context to answer the question given by the user.
 
-    If the user's query includes the word "translate" or "translation",
-    or if they ask for an output in another language,
-    then perform the translation of the WHOLE context directly (don't summarize).
-
     If the context includes relevant blog content, summarize it.
-
     If nothing is found, just say: "Could you be more specific?"
 
     Context:
@@ -165,26 +163,23 @@ async def poster(query: Query):
     Answer:
     """
 
-    prompt = PromptTemplate(
+    prompt=PromptTemplate(
         template=template,
-        input_variables=["context", "question"]
+        input_variables=["context","question"]
     )
 
-    # 🔑 Retrieve documents
-    retriever = index.as_retriever()
-    if query.title:
-        retriever = index.as_retriever(
-            search_kwargs={"filter": {"title": query.title}}
-        )
+    def retriever_with_title(query, title=None):
+        if title:
+            # Better to use metadata filter instead of injecting title into query string
+            return index.as_retriever(
+                search_kwargs={"filter": {"title": title}}
+            ).invoke(query)
+        return index.as_retriever().invoke(query)
 
-    docs = retriever.invoke(query.question)
-
-    # Convert docs to plain text for context
-    context_text = "\n\n".join([doc.page_content for doc in docs])
 
     rag_chain = (
         {
-            "context": lambda q: context_text,
+            "context": lambda q: retriever_with_title(q, title="AI companion apps on track to pull in $120M in 2025"),
             "question": RunnablePassthrough()
         }
         | prompt
@@ -192,7 +187,7 @@ async def poster(query: Query):
         | StrOutputParser()
     )
 
-    result = rag_chain.invoke(query.question)
-    return {"message": result}
+    result = rag_chain.invoke("What is the main take away of the blog post")
+    print(result)
 
 
